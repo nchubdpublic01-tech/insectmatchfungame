@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nutrition Hangman Game</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .game-container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+        
+        h1 {
+            color: #4a5568;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+        }
+        
+        .hangman-display {
+            font-family: 'Courier New', monospace;
+            font-size: 1.5rem;
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #e2e8f0;
+        }
+        
+        .word-display {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #2d3748;
+            margin: 30px 0;
+            letter-spacing: 8px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .hint {
+            background: #e6fffa;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            color: #234e52;
+            font-style: italic;
+            border-left: 4px solid #38b2ac;
+        }
+        
+        .alphabet {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+            margin: 30px 0;
+        }
+        
+        .letter-btn {
+            background: #4299e1;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .letter-btn:hover {
+            background: #3182ce;
+            transform: translateY(-2px);
+        }
+        
+        .letter-btn:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .letter-btn.wrong {
+            background: #e53e3e;
+        }
+        
+        .letter-btn.correct {
+            background: #38a169;
+        }
+        
+        .game-info {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        
+        .wrong-letters {
+            color: #e53e3e;
+        }
+        
+        .remaining-guesses {
+            color: #4299e1;
+        }
+        
+        .new-game-btn {
+            background: #48bb78;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .new-game-btn:hover {
+            background: #38a169;
+            transform: translateY(-2px);
+        }
+        
+        .game-over {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        
+        .win {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+        
+        .lose {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+        
+        @media (max-width: 768px) {
+            .game-container {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .alphabet {
+                grid-template-columns: repeat(4, 1fr);
+            }
+            
+            .word-display {
+                font-size: 1.5rem;
+                letter-spacing: 4px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>Nutrition Hangman</h1>
+        
+        <div class="hangman-display" id="hangmanDisplay">
+            <pre id="hangmanArt">
+  +---+
+  |   |
+      |
+      |
+      |
+      |
+=========
+            </pre>
+        </div>
+        
+        <div class="word-display" id="wordDisplay"></div>
+        
+        <div class="hint" id="hint"></div>
+        
+        <div class="game-info">
+            <div class="wrong-letters">Wrong: <span id="wrongLetters"></span></div>
+            <div class="remaining-guesses">Guesses left: <span id="remainingGuesses">6</span></div>
+        </div>
+        
+        <div class="alphabet" id="alphabet"></div>
+        
+        <div id="gameOver" class="game-over" style="display: none;"></div>
+        
+        <button class="new-game-btn" onclick="startNewGame()">New Game</button>
+    </div>
+
+    <script>
+        const nutritionWords = [
+            { word: 'SUGAR', hint: '甜味物質，提供快速能量但應該限制攝取' },
+            { word: 'FAT', hint: '提供能量並幫助吸收維生素的營養素' },
+            { word: 'SALT', hint: '增加風味的礦物質，但攝取過多會升高血壓' },
+            { word: 'PROTEIN', hint: '用於建造和修復肌肉的重要營養素' },
+            { word: 'CALORIES', hint: '食物提供給身體的能量單位' }
+        ];
+
+        const hangmanStages = [
+            // Stage 0 - Empty gallows
+            `<svg width="200" height="250" viewBox="0 0 200 250">
+                <line x1="10" y1="230" x2="150" y2="230" stroke="#8B4513" stroke-width="4"/>
+                <line x1="30" y1="230" x2="30" y2="20" stroke="#8B4513" stroke-width="4"/>
+                <line x1="30" y1="20" x2="120" y2="20" stroke="#8B4513" stroke-width="4"/>
+                <line x1="120" y1="20" x2="120" y2="50" stroke="#8B4513" stroke-width="4"/>
+            </svg>`,
+            // Stage 1 - Head
+            `<svg width="200" height="250" viewBox="0 0 200 250">
+                <line x1="10" y1="230" x2="150" y2="230" stroke="#8B4513" stroke-width="4"/>
+                <line x1="30" y1="230" x2="30" y2="20" stroke="#8B4513" stroke-width="4"/>
+                <line x1="30" y1="20" x2="120" y2="20" stroke="#8B4513" stroke-width="4"/>
+                <line x1="120" y1="20" x2="120" y2="50" stroke="#8B4513" stroke-width="4"/>
+                <circle cx="120" cy="70" r="20" fill="#FFE4C4" stroke="#D2691E" stroke-width="2"/>
+                <circle cx="115" cy="65" r="2" fill="#000"/>
+                <circle cx="125" cy="65" r="2" fill="#000"/>
+                <path d="M 115 75 Q 120 80 125 75" stroke="#000" stroke-width="2" fill="none"/>
+            </svg>`,
+            // Stage 2 - Body
+            `<svg width="200" height="250" viewBox="0 0 200 250">
+                <line x1="10" y1="230" x2="150" y2="230" stroke="#8B4513" stroke-width="4"/>
+                <line x1="30" y1="230" x2="30" y2="20" stroke="#8B4513" stroke-width="4"/>
+                <line x1="30" y1="20" x2="120" y2="20" stroke="#8B4513" stroke-width="4"/>
+                <line x1="120" y1="20" x2="120" y2="50" stroke="#8B4513" stroke-width="4"/>
+                <circle cx="120" cy="70" r="20" fill="#FFE4C4" stroke="#D2691E" stroke-width="2"/>
+                <circle cx="115" cy="65" r="2" fill="#000"/>
+                <circle cx="125" cy="65" r="2" fill="#000"/>
+                <path d="M 115 75 Q 120 80 125 75" stroke="#000" stroke-width="2" fill="none"/>
+                <line x1="120" y1="90" x2="120" y2="160" stroke="#D2691E" stroke-width="6"/>
+            </svg>`,
+            // Stage 3 - Left arm
+            `<svg width="200" height="250" viewBox="0 0 200 250">
+                <line x1="10" y1="230" x2="150" y2="230" stroke="#8B4513" stroke-width="4"/>
+                <line x1="30" y1="230" x2="30" y2="20" stroke="#8B4513" stroke-width="4"/>
+                <line x1="30" y1="20" x2="120" y2="20" stroke="#8B4513" stroke-width="4"/>
+                <line x1="120" y1="20" x2="120" y2="50" stroke="#8B4513" stroke-width="4"/>
+                <circle cx="120" cy="70" r="20" fill="#FFE4C4" stroke="#D2691E" stroke-width="2"/>
+                <circle cx="115" cy="65" r="2" fill="#000"/>
+                <circle cx="125" cy="65" r="2" fill="#000"/>
+                <path d="M 115 75 Q 120 80 125 75" stroke="#000" stroke-width="2" fill="none"/>
+                <line x1="120" y1="90" x2="120" y2="160" stroke="#D2691E" stroke-width="6"/>
+                <line x1="120" y1="110" x2="90" y2="140" stroke="#D2691E" stroke-width="4"/>
+            </svg>`,
+            // Stage 4 - Right arm
+            `<svg width="200" height="250" viewBox="0 0 200 250">
+                <line x1="10" y1="230" x2="150" y2="230" stroke="#8B4513" stroke-width="4"/>
+                <line x1="30" y1="230" x2="30" y2="20" stroke="#8B4513" stroke-width="4"/>
+                <line x1="30" y1="20" x2="120" y2="20" stroke="#8B4513" stroke-width="4"/>
+                <line x1="120" y1="20" x2="120" y2="50" stroke="#8B4513" stroke-width="4"/>
+                <circle cx="120" cy="70" r="20" fill="#FFE4C4" stroke="#D2691E" stroke-width="2"/>
+                <circle cx="115" cy="65" r="2" fill="#000"/>
+                <circle cx="125" cy="65" r="2" fill="#000"/>
+                <path d="M 115 75 Q 120 80 125 75" stroke="#000" stroke-width="2" fill="none"/>
+                <line x1="120" y1="90" x2="120" y2="160" stroke="#D2691E" stroke-width="6"/>
+                <line x1="120" y1="110" x2="90" y2="140" stroke="#D2691E" stroke-width="4"/>
+                <line x1="120" y1="110" x2="150" y2="140" stroke="#D2691E" stroke-width="4"/>
+            </svg>`,
+            // Stage 5 - Left leg
+            `<svg width="200" height="250" viewBox="0 0 200 250">
+                <line x1="10" y1="230" x2="150" y2="230" stroke="#8B4513" stroke-width="4"/>
+                <line x1="30" y1="230" x2="30" y2="20" stroke="#8B4513" stroke-width="4"/>
+                <line x1="30" y1="20" x2="120" y2="20" stroke="#8B4513" stroke-width="4"/>
+                <line x1="120" y1="20" x2="120" y2="50" stroke="#8B4513" stroke-width="4"/>
+                <circle cx="120" cy="70" r="20" fill="#FFE4C4" stroke="#D2691E" stroke-width="2"/>
+                <circle cx="115" cy="65" r="2" fill="#000"/>
+                <circle cx="125" cy="65" r="2" fill="#000"/>
+                <path d="M 115 75 Q 120 80 125 75" stroke="#000" stroke-width="2" fill="none"/>
+                <line x1="120" y1="90" x2="120" y2="160" stroke="#D2691E" stroke-width="6"/>
+                <line x1="120" y1="110" x2="90" y2="140" stroke="#D2691E" stroke-width="4"/>
+                <line x1="120" y1="110" x2="150" y2="140" stroke="#D2691E" stroke-width="4"/>
+                <line x1="120" y1="160" x2="100" y2="200" stroke="#D2691E" stroke-width="4"/>
+            </svg>`,
+            // Stage 6 - Right leg (complete)
+            `<svg width="200" height="250" viewBox="0 0 200 250">
+                <line x1="10" y1="230" x2="150" y2="230" stroke="#8B4513" stroke-width="4"/>
+                <line x1="30" y1="230" x2="30" y2="20" stroke="#8B4513" stroke-width="4"/>
+                <line x1="30" y1="20" x2="120" y2="20" stroke="#8B4513" stroke-width="4"/>
+                <line x1="120" y1="20" x2="120" y2="50" stroke="#8B4513" stroke-width="4"/>
+                <circle cx="120" cy="70" r="20" fill="#FFE4C4" stroke="#D2691E" stroke-width="2"/>
+                <circle cx="113" cy="63" r="2" fill="#000"/>
+                <circle cx="127" cy="63" r="2" fill="#000"/>
+                <path d="M 113 78 Q 120 85 127 78" stroke="#000" stroke-width="2" fill="none"/>
+                <line x1="120" y1="90" x2="120" y2="160" stroke="#D2691E" stroke-width="6"/>
+                <line x1="120" y1="110" x2="90" y2="140" stroke="#D2691E" stroke-width="4"/>
+                <line x1="120" y1="110" x2="150" y2="140" stroke="#D2691E" stroke-width="4"/>
+                <line x1="120" y1="160" x2="100" y2="200" stroke="#D2691E" stroke-width="4"/>
+                <line x1="120" y1="160" x2="140" y2="200" stroke="#D2691E" stroke-width="4"/>
+            </svg>`
+        ];
+
+        let currentWord = '';
+        let currentHint = '';
+        let guessedLetters = [];
+        let wrongGuesses = 0;
+        let gameWon = false;
+        let gameLost = false;
+
+        function initializeGame() {
+            createAlphabet();
+            startNewGame();
+        }
+
+        function createAlphabet() {
+            const alphabetDiv = document.getElementById('alphabet');
+            const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            
+            alphabetDiv.innerHTML = '';
+            for (let letter of letters) {
+                const button = document.createElement('button');
+                button.className = 'letter-btn';
+                button.textContent = letter;
+                button.onclick = () => guessLetter(letter);
+                button.id = `btn-${letter}`;
+                alphabetDiv.appendChild(button);
+            }
+        }
+
+        function startNewGame() {
+            const randomIndex = Math.floor(Math.random() * nutritionWords.length);
+            currentWord = nutritionWords[randomIndex].word;
+            currentHint = nutritionWords[randomIndex].hint;
+            guessedLetters = [];
+            wrongGuesses = 0;
+            gameWon = false;
+            gameLost = false;
+
+            updateDisplay();
+            resetAlphabet();
+            document.getElementById('gameOver').style.display = 'none';
+        }
+
+        function resetAlphabet() {
+            const buttons = document.querySelectorAll('.letter-btn');
+            buttons.forEach(button => {
+                button.disabled = false;
+                button.className = 'letter-btn';
+            });
+        }
+
+        function guessLetter(letter) {
+            if (guessedLetters.includes(letter) || gameWon || gameLost) return;
+
+            guessedLetters.push(letter);
+            const button = document.getElementById(`btn-${letter}`);
+            button.disabled = true;
+
+            if (currentWord.includes(letter)) {
+                button.classList.add('correct');
+                checkWin();
+            } else {
+                button.classList.add('wrong');
+                wrongGuesses++;
+                checkLose();
+            }
+
+            updateDisplay();
+        }
+
+        function updateDisplay() {
+            // Update word display
+            let display = '';
+            for (let letter of currentWord) {
+                if (guessedLetters.includes(letter)) {
+                    display += letter + ' ';
+                } else {
+                    display += '_ ';
+                }
+            }
+            document.getElementById('wordDisplay').textContent = display.trim();
+
+            // Update hint
+            document.getElementById('hint').textContent = `Hint: ${currentHint}`;
+
+            // Update hangman art
+            document.getElementById('hangmanArt').innerHTML = hangmanStages[wrongGuesses];
+
+            // Update wrong letters
+            const wrongLetters = guessedLetters.filter(letter => !currentWord.includes(letter));
+            document.getElementById('wrongLetters').textContent = wrongLetters.join(', ');
+
+            // Update remaining guesses
+            document.getElementById('remainingGuesses').textContent = 6 - wrongGuesses;
+        }
+
+        function checkWin() {
+            const allLettersGuessed = currentWord.split('').every(letter => guessedLetters.includes(letter));
+            if (allLettersGuessed) {
+                gameWon = true;
+                const gameOverDiv = document.getElementById('gameOver');
+                gameOverDiv.textContent = `恭喜！你學會了 "${currentWord}"!`;
+                gameOverDiv.className = 'game-over win';
+                gameOverDiv.style.display = 'block';
+            }
+        }
+
+        function checkLose() {
+            if (wrongGuesses >= 6) {
+                gameLost = true;
+                const gameOverDiv = document.getElementById('gameOver');
+                gameOverDiv.textContent = `遊戲結束！正確答案是 "${currentWord}"`;
+                gameOverDiv.className = 'game-over lose';
+                gameOverDiv.style.display = 'block';
+            }
+        }
+
+        // Initialize the game when page loads
+        initializeGame();
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'97c6df0cc640826d',t:'MTc1NzQyMjg1NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
