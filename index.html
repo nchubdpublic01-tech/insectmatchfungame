@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>昆蟲記憶配對遊戲</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .card-flip {
+            transform-style: preserve-3d;
+            transition: transform 0.6s;
+        }
+        .card-flip.flipped {
+            transform: rotateY(180deg);
+        }
+        .card-face {
+            backface-visibility: hidden;
+        }
+        .card-back {
+            transform: rotateY(180deg);
+        }
+        .matched {
+            animation: matchPulse 0.6s ease-in-out;
+        }
+        @keyframes matchPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-green-400 via-blue-500 to-purple-600 min-h-screen p-4">
+    <div class="max-w-4xl mx-auto">
+        <!-- 遊戲標題和統計 -->
+        <div class="text-center mb-6">
+            <h1 class="text-4xl font-bold text-white mb-4">🐛 昆蟲記憶配對遊戲 🦋</h1>
+            <div class="flex justify-center gap-8 text-white text-lg">
+                <div class="bg-white/20 px-4 py-2 rounded-lg">
+                    <span class="font-semibold">配對數: </span>
+                    <span id="matches">0</span> / 10
+                </div>
+                <div class="bg-white/20 px-4 py-2 rounded-lg">
+                    <span class="font-semibold">得分: </span>
+                    <span id="score">0</span>
+                </div>
+                <div class="bg-white/20 px-4 py-2 rounded-lg">
+                    <span class="font-semibold">翻牌次數: </span>
+                    <span id="moves">0</span>
+                </div>
+                <div class="bg-white/20 px-4 py-2 rounded-lg">
+                    <span class="font-semibold">剩餘時間: </span>
+                    <span id="timer">01:30</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 遊戲說明 -->
+        <div class="bg-white/90 rounded-lg p-4 mb-6 text-center">
+            <p class="text-gray-700">
+                <span class="text-green-600 font-semibold">🐝 有益昆蟲</span> 幫助植物生長，
+                <span class="text-red-600 font-semibold">🐜 害蟲</span> 會傷害植物。
+                找出相同的昆蟲配對吧！
+            </p>
+        </div>
+
+        <!-- 遊戲板 -->
+        <div id="gameBoard" class="grid grid-cols-4 md:grid-cols-5 gap-3 mb-6">
+            <!-- 卡片將由 JavaScript 生成 -->
+        </div>
+
+        <!-- 控制按鈕 -->
+        <div class="text-center">
+            <button id="newGameBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-colors duration-200">
+                🎮 開始新遊戲
+            </button>
+        </div>
+
+        <!-- 勝利訊息 -->
+        <div id="winMessage" class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
+            <div class="bg-white rounded-lg p-6 text-center shadow-2xl border-4 border-yellow-400 max-w-sm">
+                <div class="text-5xl mb-3">🎉</div>
+                <h2 class="text-2xl font-bold text-green-600 mb-3">恭喜完成！</h2>
+                <p class="text-gray-700 mb-4 text-sm">
+                    你用了 <span id="finalMoves" class="font-bold text-blue-600"></span> 次翻牌<br>
+                    花費時間 <span id="finalTime" class="font-bold text-blue-600"></span><br>
+                    最終得分 <span id="finalScore" class="font-bold text-green-600"></span> 分
+                </p>
+                <button id="playAgainBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg text-sm">
+                    再玩一次
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 昆蟲資料
+        const INSECTS = [
+            { name: 'Bee', displayName: 'Bee', type: 'beneficial', icon: '🐝' },
+            { name: 'Ladybug', displayName: 'Ladybug', type: 'beneficial', icon: '🐞' },
+            { name: 'Butterfly', displayName: 'Butterfly', type: 'beneficial', icon: '🦋' },
+            { name: 'Spider', displayName: 'Spider', type: 'beneficial', icon: '🕷️' },
+            { name: 'Beetle', displayName: 'Beetle', type: 'beneficial', icon: '🪲' },
+            { name: 'Worm', displayName: 'Worm', type: 'beneficial', icon: '🪱' },
+            { name: 'Ant', displayName: 'Ant', type: 'harmful', icon: '🐜' },
+            { name: 'Grasshopper', displayName: 'Grasshopper', type: 'harmful', icon: '🦗' },
+            { name: 'Caterpillar', displayName: 'Caterpillar', type: 'harmful', icon: '🐛' },
+            { name: 'Mosquito', displayName: 'Mosquito', type: 'harmful', icon: '🦟' }
+        ];
+
+        // 遊戲狀態
+        let gameState = {
+            cards: [],
+            flippedCards: [],
+            matchedPairs: 0,
+            moves: 0,
+            score: 0,
+            gameStarted: false,
+            gameEnded: false,
+            timeLeft: 90,
+            timer: null
+        };
+
+        // 初始化遊戲
+        function initGame() {
+            // 重置遊戲狀態
+            gameState = {
+                cards: [],
+                flippedCards: [],
+                matchedPairs: 0,
+                moves: 0,
+                score: 0,
+                gameStarted: false,
+                gameEnded: false,
+                timeLeft: 90,
+                timer: null
+            };
+
+            // 創建卡片對（每種昆蟲兩張）
+            const cardPairs = [];
+            INSECTS.forEach((insect, index) => {
+                cardPairs.push({ ...insect, id: index * 2, pairId: index });
+                cardPairs.push({ ...insect, id: index * 2 + 1, pairId: index });
+            });
+
+            // 洗牌
+            gameState.cards = shuffleArray(cardPairs);
+            
+            // 渲染遊戲板
+            renderGameBoard();
+            updateStats();
+            hideWinMessage();
+        }
+
+        // 洗牌函數
+        function shuffleArray(array) {
+            const shuffled = [...array];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled;
+        }
+
+        // 渲染遊戲板
+        function renderGameBoard() {
+            const gameBoard = document.getElementById('gameBoard');
+            gameBoard.innerHTML = '';
+
+            gameState.cards.forEach((card, index) => {
+                const cardElement = createCardElement(card, index);
+                gameBoard.appendChild(cardElement);
+            });
+        }
+
+        // 創建卡片元素
+        function createCardElement(card, index) {
+            const cardDiv = document.createElement('div');
+            cardDiv.className = 'relative w-full aspect-square cursor-pointer';
+            cardDiv.style.perspective = '1000px';
+
+            const cardInner = document.createElement('div');
+            cardInner.className = 'card-flip w-full h-full relative';
+            cardInner.dataset.cardIndex = index;
+
+            // 卡片正面（背面圖案）
+            const cardFront = document.createElement('div');
+            cardFront.className = 'card-face absolute w-full h-full bg-gradient-to-br from-blue-400 to-purple-500 rounded-lg flex items-center justify-center shadow-lg border-2 border-white/30';
+            cardFront.innerHTML = `
+                <div class="text-white text-4xl">🌿</div>
+            `;
+
+            // 卡片背面（昆蟲圖案）
+            const cardBack = document.createElement('div');
+            const bgColor = card.type === 'beneficial' ? 'from-green-100 to-green-200' : 'from-red-100 to-red-200';
+            const borderColor = card.type === 'beneficial' ? 'border-green-500' : 'border-red-500';
+            
+            cardBack.className = `card-face card-back absolute w-full h-full bg-gradient-to-br ${bgColor} rounded-lg flex flex-col items-center justify-center shadow-lg border-2 ${borderColor}`;
+            cardBack.innerHTML = `
+                <div class="text-5xl mb-2">${card.icon}</div>
+                <div class="text-sm font-semibold text-gray-700">${card.displayName}</div>
+            `;
+
+            cardInner.appendChild(cardFront);
+            cardInner.appendChild(cardBack);
+            cardDiv.appendChild(cardInner);
+
+            // 添加點擊事件
+            cardDiv.addEventListener('click', () => handleCardClick(index));
+
+            return cardDiv;
+        }
+
+        // 處理卡片點擊
+        function handleCardClick(cardIndex) {
+            if (gameState.gameEnded) return;
+            if (gameState.flippedCards.length >= 2) return;
+            if (gameState.flippedCards.includes(cardIndex)) return;
+            if (isCardMatched(cardIndex)) return;
+
+            // 開始計時
+            if (!gameState.gameStarted) {
+                startGame();
+            }
+
+            // 翻牌
+            flipCard(cardIndex);
+            gameState.flippedCards.push(cardIndex);
+
+            // 檢查配對
+            if (gameState.flippedCards.length === 2) {
+                gameState.moves++;
+                updateStats();
+                
+                setTimeout(() => {
+                    checkMatch();
+                }, 1000);
+            }
+        }
+
+        // 開始遊戲
+        function startGame() {
+            gameState.gameStarted = true;
+            
+            gameState.timer = setInterval(() => {
+                gameState.timeLeft--;
+                updateTimer();
+                
+                if (gameState.timeLeft <= 0) {
+                    endGame(true); // 時間到結束
+                }
+            }, 1000);
+        }
+
+        // 翻牌動畫
+        function flipCard(cardIndex) {
+            const cardElement = document.querySelector(`[data-card-index="${cardIndex}"]`);
+            cardElement.classList.add('flipped');
+            playFlipSound();
+        }
+
+        // 翻回卡片
+        function unflipCard(cardIndex) {
+            const cardElement = document.querySelector(`[data-card-index="${cardIndex}"]`);
+            cardElement.classList.remove('flipped');
+        }
+
+        // 檢查配對
+        function checkMatch() {
+            const [firstIndex, secondIndex] = gameState.flippedCards;
+            const firstCard = gameState.cards[firstIndex];
+            const secondCard = gameState.cards[secondIndex];
+
+            if (firstCard.pairId === secondCard.pairId) {
+                // 配對成功
+                markAsMatched(firstIndex);
+                markAsMatched(secondIndex);
+                gameState.matchedPairs++;
+                
+                // 只有有益昆蟲配對才得分和播放音效
+                if (firstCard.type === 'beneficial') {
+                    gameState.score += 5;
+                    playMatchSound();
+                }
+                
+                // 檢查遊戲是否結束
+                if (gameState.matchedPairs === INSECTS.length) {
+                    endGame();
+                }
+            } else {
+                // 配對失敗，翻回卡片
+                unflipCard(firstIndex);
+                unflipCard(secondIndex);
+            }
+
+            gameState.flippedCards = [];
+            updateStats();
+        }
+
+        // 標記為已配對
+        function markAsMatched(cardIndex) {
+            const cardElement = document.querySelector(`[data-card-index="${cardIndex}"]`);
+            cardElement.classList.add('matched');
+            cardElement.style.pointerEvents = 'none';
+        }
+
+        // 檢查卡片是否已配對
+        function isCardMatched(cardIndex) {
+            const cardElement = document.querySelector(`[data-card-index="${cardIndex}"]`);
+            return cardElement.classList.contains('matched');
+        }
+
+        // 結束遊戲
+        function endGame(timeUp = false) {
+            gameState.gameEnded = true;
+            clearInterval(gameState.timer);
+            
+            // 播放結束音效
+            if (timeUp) {
+                playTimeUpSound();
+            } else {
+                playVictorySound();
+            }
+            
+            setTimeout(() => {
+                showWinMessage(timeUp);
+            }, 500);
+        }
+
+        // 更新統計資訊
+        function updateStats() {
+            document.getElementById('matches').textContent = gameState.matchedPairs;
+            document.getElementById('moves').textContent = gameState.moves;
+            document.getElementById('score').textContent = gameState.score;
+        }
+
+        // 更新計時器
+        function updateTimer() {
+            const minutes = Math.floor(gameState.timeLeft / 60);
+            const seconds = gameState.timeLeft % 60;
+            
+            const timerElement = document.getElementById('timer');
+            timerElement.textContent = 
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            // 時間不足時變紅色警告
+            if (gameState.timeLeft <= 10) {
+                timerElement.style.color = '#ef4444';
+                timerElement.style.fontWeight = 'bold';
+            } else {
+                timerElement.style.color = '';
+                timerElement.style.fontWeight = '';
+            }
+        }
+
+        // 顯示勝利訊息
+        function showWinMessage(timeUp = false) {
+            const winMessageDiv = document.getElementById('winMessage');
+            const titleElement = winMessageDiv.querySelector('h2');
+            const iconElement = winMessageDiv.querySelector('.text-5xl');
+            
+            if (timeUp) {
+                titleElement.textContent = '時間到！';
+                titleElement.className = 'text-2xl font-bold text-red-600 mb-3';
+                iconElement.textContent = '⏰';
+            } else {
+                titleElement.textContent = '恭喜完成！';
+                titleElement.className = 'text-2xl font-bold text-green-600 mb-3';
+                iconElement.textContent = '🎉';
+            }
+            
+            document.getElementById('finalMoves').textContent = gameState.moves;
+            const timeUsed = 90 - gameState.timeLeft;
+            const minutes = Math.floor(timeUsed / 60);
+            const seconds = timeUsed % 60;
+            document.getElementById('finalTime').textContent = 
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            document.getElementById('finalScore').textContent = gameState.score;
+            
+            winMessageDiv.classList.remove('hidden');
+        }
+
+        // 隱藏勝利訊息
+        function hideWinMessage() {
+            document.getElementById('winMessage').classList.add('hidden');
+        }
+
+        // 音效播放函數
+        function playFlipSound() {
+            // 使用 Web Audio API 創建翻牌音效
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.1);
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.1);
+        }
+
+        function playMatchSound() {
+            // 配對成功音效
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(523, audioContext.currentTime); // C5
+            oscillator.frequency.setValueAtTime(659, audioContext.currentTime + 0.1); // E5
+            oscillator.frequency.setValueAtTime(784, audioContext.currentTime + 0.2); // G5
+            
+            gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.3);
+        }
+
+        function playVictorySound() {
+            // 勝利音效
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // 播放勝利旋律
+            const notes = [523, 659, 784, 1047]; // C5, E5, G5, C6
+            const noteDuration = 0.3;
+            
+            notes.forEach((frequency, index) => {
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime + index * noteDuration);
+                gainNode.gain.setValueAtTime(0.4, audioContext.currentTime + index * noteDuration);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + (index + 1) * noteDuration);
+                
+                oscillator.start(audioContext.currentTime + index * noteDuration);
+                oscillator.stop(audioContext.currentTime + (index + 1) * noteDuration);
+            });
+        }
+
+        function playTimeUpSound() {
+            // 時間到音效
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            // 低沉的警告音
+            oscillator.frequency.setValueAtTime(200, audioContext.currentTime);
+            oscillator.frequency.setValueAtTime(150, audioContext.currentTime + 0.5);
+            oscillator.frequency.setValueAtTime(100, audioContext.currentTime + 1.0);
+            
+            gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1.5);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 1.5);
+        }
+
+        // 事件監聽器
+        document.getElementById('newGameBtn').addEventListener('click', initGame);
+        document.getElementById('playAgainBtn').addEventListener('click', initGame);
+
+        // 初始化遊戲
+        initGame();
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'97c779ccd7c8826d',t:'MTc1NzQyOTE5NC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
